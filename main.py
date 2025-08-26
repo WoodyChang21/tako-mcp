@@ -5,9 +5,10 @@ import tempfile
 import traceback
 from typing import Any
 
-from tako.client import TakoClient, KnowledgeSearchSourceIndex
-from tako.types.visualize.types import TakoDataFormatDataset
 from mcp.server.fastmcp import FastMCP
+from tako.client import TakoClient
+from tako.types.knowledge_search.types import KnowledgeSearchSourceIndex
+from tako.types.visualize.types import TakoDataFormatDataset
 
 TAKO_API_KEY = os.getenv("TAKO_API_KEY")
 X_TAKO_URL = os.getenv("X_TAKO_URL", "https://trytako.com")
@@ -20,13 +21,34 @@ tako_client = TakoClient(api_key=TAKO_API_KEY, server_url=X_TAKO_URL)
 
 
 @mcp.tool()
-async def search_tako(text: str) -> str:
-    """Search Tako for any knowledge you want and get data and visualizations."""
+async def search_tako(text: str) -> dict[str, Any] | str:
+    """Search the Tako knowledge index for any knowledge you want and get data and visualizations.
+    Returns embed, webpage, and image url of the visualization with relevant metadata such as source, methodology, and description
+    as well as the data used to generate the visualization.
+    """
     try:
         response = tako_client.knowledge_search(
             text=text,
             source_indexes=[
                 KnowledgeSearchSourceIndex.TAKO,
+            ],
+        )
+    except Exception:
+        logging.error(f"Failed to search Tako: {text}, {traceback.format_exc()}")
+        return "No card found"
+    return response.model_dump()
+
+
+@mcp.tool()
+async def web_search_tako(text: str) -> dict[str, Any] | str:
+    """Search the general web using Parallel Web Search to get data and visualizations.
+    Returns embed, webpage, and image url of the visualization with relevant metadata such as source, methodology, and description
+    as well as the data used to generate the visualization.
+    """
+    try:
+        response = tako_client.knowledge_search(
+            text=text,
+            source_indexes=[
                 KnowledgeSearchSourceIndex.WEB,
             ],
         )
@@ -37,37 +59,64 @@ async def search_tako(text: str) -> str:
 
 
 @mcp.tool()
-async def upload_file_to_visualize(filename: str, content: str, encoding: str = "base64") -> str:
+async def deep_search_tako(text: str) -> dict[str, Any] | str:
+    """Perform a deep or analytical search of Tako for any knowledge you want and get data and visualizations.
+    Returns embed, webpage, and image url of the visualization with relevant metadata such as source, methodology, and description
+    as well as the data used to generate the visualization.
+    """
+    try:
+        response = tako_client.knowledge_search(
+            text=text,
+            source_indexes=[
+                "tako_deep",
+            ],
+        )
+    except Exception as e:
+        logging.error(f"Failed to search Tako: {text}, {traceback.format_exc()}")
+        return f"No card found {e}: {traceback.format_exc()}"
+    return response.model_dump()
+
+
+@mcp.tool()
+async def upload_file_to_visualize(
+    filename: str, content: str, encoding: str = "base64"
+) -> str:
     """Upload a file in base64 format to Tako to visualize. Returns the file_id of the uploaded file that can call visualize_file with.
-    
+
     Supported file type extensions:
     - .csv
     - .xlsx
     - .xls
     - .parquet
-    
-    Response: 
+
+    Response:
         file_id: <file_id>
     """
     if encoding == "base64":
         file_data = base64.b64decode(content)
-        
+
         # Use tempfile to create a temporary file in the system's temp directory
-        with tempfile.NamedTemporaryFile(prefix="temp_", suffix="_" + filename, delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            prefix="temp_", suffix="_" + filename, delete=False
+        ) as temp_file:
             temp_file.write(file_data)
             temp_file_path = temp_file.name
-        
+
         try:
             file_id = tako_client.beta_upload_file(temp_file_path)
         except Exception:
-            logging.error(f"Failed to upload file: {temp_file_path}, {traceback.format_exc()}")
+            logging.error(
+                f"Failed to upload file: {temp_file_path}, {traceback.format_exc()}"
+            )
             return f"Failed to upload file: {temp_file_path}, {traceback.format_exc()}"
         finally:
             # Clean up the temporary file
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
     else:
-        raise ValueError(f"Unsupported encoding: {encoding}, supported encoding is base64")
+        raise ValueError(
+            f"Unsupported encoding: {encoding}, supported encoding is base64"
+        )
 
     return f"{file_id}"
 
@@ -75,9 +124,9 @@ async def upload_file_to_visualize(filename: str, content: str, encoding: str = 
 @mcp.tool()
 async def visualize_file(file_id: str, query: str | None = None) -> str:
     """
-    Visualize a file in Tako using the file_id returned from upload_file_to_visualize. 
-    Optionally, provide a query that includes an analytical question and visualization types to visualize the file. 
-    
+    Visualize a file in Tako using the file_id returned from upload_file_to_visualize.
+    Optionally, provide a query that includes an analytical question and visualization types to visualize the file.
+
     Query Examples:
     - Show me a timeseries graph of X and Y over the last 10 years.
     - Show me a bar chart comparing the top 10 companies by revenue in 2024.
@@ -87,15 +136,15 @@ async def visualize_file(file_id: str, query: str | None = None) -> str:
     - Compare the revenue of the top 10 companies by revenue in 2024.
     - Show me a pie chart of the categories of products sold in 2023.
     - Histogram of the distribution of salary in the marketing department.
-    
+
     Args:
         file_id: The file_id of the file to visualize.
         query: The query to visualize the file.
-        
+
     Returns:
         Tako Card with Visualization Embed and Image Link.
     """
-    try:   
+    try:
         response = tako_client.beta_visualize(file_id=file_id, query=query)
     except Exception:
         logging.error(f"Failed to visualize file: {file_id}, {traceback.format_exc()}")
@@ -106,9 +155,9 @@ async def visualize_file(file_id: str, query: str | None = None) -> str:
 @mcp.tool()
 async def visualize_dataset(dataset: dict[str, Any], query: str | None = None) -> str:
     """
-    Visualize a dataset in Tako Data Format. 
-    Optionally, provide a query that includes an analytical question and visualization types to visualize the dataset. 
-    
+    Visualize a dataset in Tako Data Format.
+    Optionally, provide a query that includes an analytical question and visualization types to visualize the dataset.
+
     Query Examples:
     - Show me a timeseries graph of X and Y over the last 10 years.
     - Show me a bar chart comparing the top 10 companies by revenue in 2024.
@@ -118,11 +167,11 @@ async def visualize_dataset(dataset: dict[str, Any], query: str | None = None) -
     - Compare the revenue of the top 10 companies by revenue in 2024.
     - Show me a pie chart of the categories of products sold in 2023.
     - Histogram of the distribution of salary in the marketing department.
-    
+
     Args:
         dataset: The dataset to visualize in Tako Data Format (Tidy data).
         query: The query to visualize the dataset.
-        
+
     Returns:
         Tako Card with Visualization Embed and Image Link.
     """
@@ -159,7 +208,7 @@ async def generate_search_tako_prompt(text: str) -> str:
     * Search for a single metric per query. For example if user wants to know about a company, you may generate query like "Market Cap of Tesla" or "Revenue of Tesla" but not "Tesla's Market Cap and Revenue".
     
     Step 2. Ground your answer based on the results from Tako.
-    * Using the data provided by Tako, ground your answer.
+    * Using the data provided by Tako, ground your answer. Use the `data_url` to get a URL to download the data.
     
     Step 3. Add visualizations from Step 1 to your answer.
     * Use the embed or image link provided by Tako to add visualizations to your answer.
