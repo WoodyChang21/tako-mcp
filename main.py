@@ -4,10 +4,11 @@ import os
 import tempfile
 import traceback
 from typing import Any
+import requests
 
 from mcp.server.fastmcp import FastMCP
 from tako.client import TakoClient
-from tako.types.knowledge_search.types import KnowledgeSearchSourceIndex
+from tako.types.knowledge_search.types import KnowledgeSearchSourceIndex, KnowledgeSearchResults
 from tako.types.visualize.types import TakoDataFormatDataset
 
 TAKO_API_KEY = os.getenv("TAKO_API_KEY")
@@ -33,9 +34,9 @@ async def search_tako(text: str) -> dict[str, Any] | str:
                 KnowledgeSearchSourceIndex.TAKO,
             ],
         )
-    except Exception:
+    except Exception as e:
         logging.error(f"Failed to search Tako: {text}, {traceback.format_exc()}")
-        return "No card found"
+        return f"No card found {e}: {traceback.format_exc()}"
     return response.model_dump()
 
 
@@ -75,6 +76,40 @@ async def deep_search_tako(text: str) -> dict[str, Any] | str:
         logging.error(f"Failed to search Tako: {text}, {traceback.format_exc()}")
         return f"No card found {e}: {traceback.format_exc()}"
     return response.model_dump()
+
+@mcp.tool()
+async def data_search_tako(text: str) -> dict[str, Any] | str:
+    """Search the Tako knowledge index for any knowledge you want and get data and visualizations.
+    Returns embed, webpage, and image url of the visualization with relevant metadata such as source, methodology, and description
+    as well as the data used to generate the visualization.
+    """
+    try:
+        response = tako_client.knowledge_search(
+            text=text,
+            source_indexes=[
+                KnowledgeSearchSourceIndex.TAKO.value,
+                "tako_deep",
+            ],
+            extra_params="include_data_url=true",
+        )
+    except Exception:
+        logging.error(f"Failed to get file data: {text}, {traceback.format_exc()}")
+        return f"Failed to get file data: {text}, {traceback.format_exc()}"
+    
+
+    assert isinstance(response, KnowledgeSearchResults), f"Response is not a KnowledgeSearchResults: {response}"
+    assert response.outputs is not None, f"Response.outputs is None: {response}"
+    assert response.outputs.knowledge_cards is not None, f"Response.outputs.knowledge_cards is None: {response}"
+    
+    ret: dict[str, Any] = response.model_dump()
+    ret["raw_data_by_card_id"] = {}
+    for kc in response.outputs.knowledge_cards:
+        if kc.data_url:
+            response = requests.get(kc.data_url)
+            response.raise_for_status()  # Raise an exception for bad status codes
+            data = response.text
+            ret["raw_data_by_card_id"][kc.card_id] = data
+    return ret
 
 
 @mcp.tool()
