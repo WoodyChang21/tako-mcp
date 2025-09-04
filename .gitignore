@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.python-version
+pyvenv.cfg
+
+# IDE
+settings.json
+
+# Environment variables
+.env
+
+# Other
+.DS_Store
+CACHEDIR.TAG
