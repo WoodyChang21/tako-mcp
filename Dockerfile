@@ -13,7 +13,8 @@ COPY uv.lock .
 RUN pip install --no-cache-dir --upgrade pip \
  && pip install --no-cache-dir .
 
-# Default to local env
+# Default to remote env
 ENV ENVIRONMENT=remote
+# TAKO_API_KEY should be provided via .env file or environment variables
 
 CMD ["python", "main.py"]

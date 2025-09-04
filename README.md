@@ -103,8 +103,51 @@ Select the `Tools` tab, and click `ListTools`.
 Select `search_tako` and test a query
 
 
+## Docker Compose Setup
+
+### Quick Start with Docker Compose
+
+1. **Set up environment variables:**
+   ```bash
+   cp env.template .env
+   # Edit .env and add your TAKO_API_KEY
+   ```
+
+2. **Start the server:**
+   ```bash
+   docker compose up -d
+   ```
+
+3. **Check status:**
+   ```bash
+   docker compose ps
+   docker compose logs -f
+   ```
+
+4. **Stop the server:**
+   ```bash
+   docker compose down
+   ```
+
+The server will be available at `http://localhost:8002/mcp`
+
+### Security Note
+- The `.env` file contains your API key and should **never be committed** to git
+- Use `env.template` as a reference for required environment variables
+- The `.env` file is automatically ignored by git
+
+### Docker Compose Features
+
+- **Port mapping**: Host port 8002 → Container port 8001
+- **Health checks**: Automatic health monitoring
+- **Restart policy**: Automatically restarts on failure
+- **Environment variables**: Easy configuration via `.env` file
+- **Network isolation**: Dedicated network for the service
+
 ## Deploying it on render
 Since we use uv Render uses pip, we have to build a requirements.txt
 ```
 uv pip compile pyproject.toml > requirements.txt 
-```# Custom modification for Woody's project
+```
+
+# Custom modification for Woody's project

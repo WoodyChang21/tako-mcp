@@ -14,6 +14,9 @@ pyvenv.cfg
 # IDE
 settings.json
 
+# Environment variables
+.env
+
 # Other
 .DS_Store
 CACHEDIR.TAG
